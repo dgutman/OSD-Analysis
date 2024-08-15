@@ -65,14 +65,7 @@ services:
     depends_on:
       - gisdb
       - api
-    command:
-      [
-        "./wait-for-it.sh",
-        "api:8000",
-        "--",
-        "python",
-        "dashApp.py"
-      ]
+    command: [ "./wait-for-it.sh", "api:8000", "--", "python", "dashApp.py" ]
   ##############################################
   ##  Create a CELERY worker with autoreload  ##
   ##  In future start can add addl workers    ##

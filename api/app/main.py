@@ -36,11 +36,14 @@ app.add_middleware(
 def on_startup():
     create_db_and_tables()
 
+
 @app.get("/")
 def read_root():
-    return {"Msg": "Hello World"}
+    return {"Msg": "Hello World.  Welcome to the multiplexer"}
+
 
 # IMAGE ENDPOINTS
+
 
 @app.get("/get-image/{imageId}")
 async def lookupImageById(imageId: str):
@@ -50,10 +53,16 @@ async def lookupImageById(imageId: str):
 
     return None
 
+
 def lookupImageByName(imageName: str):
     with Session(engine) as session:
-        image_info = session.query(DSAImage).filter(DSAImage.imageName.startswith(imageName)).first()
+        image_info = (
+            session.query(DSAImage)
+            .filter(DSAImage.imageName.startswith(imageName))
+            .first()
+        )
         return image_info
+
 
 @app.get("/lookupImageName")
 async def findImageByName(imageName: str):
@@ -66,9 +75,23 @@ async def get_imageList():
     with Session(engine) as session:
         try:
             images = session.query(DSAImage.imageId, DSAImage.imageName).all()
-            return [{"imageId": image_id, "imageName": image_name} for image_id, image_name in images]
+
+            if len(images) == 0:
+                ## Load the default image for testing..
+                await add_DSAImage(
+                    "649b78f3fbfabbf55f16fb0f",
+                    "https://candygram.neurology.emory.edu/api/v1",
+                )
+                images = session.query(DSAImage.imageId, DSAImage.imageName).all()
+
+            return [
+                {"imageId": image_id, "imageName": image_name}
+                for image_id, image_name in images
+            ]
+
         except Exception as e:
-            print(f"Retriving images failed due to {e}")
+            print(f"Retreiving images failed due to {e}")
+
 
 @app.post("/add-DSAImage/")
 async def add_DSAImage(imageId: str, dsaApiUrl: str):
@@ -107,101 +130,142 @@ async def add_DSAImage(imageId: str, dsaApiUrl: str):
         else:
             return exist
 
+
 # FEATURE ENDPOINTS
- 
+
+
 @app.get("/get-all-features")
 async def get_cell_features(lmt: Optional[int] = 5):
     with Session(engine) as session:
         try:
             features = session.query(CellFeatures).limit(lmt).all()
             print(f"found {len(features)} records")
-            convert_tolist = lambda x : x.tolist(); 
+            convert_tolist = lambda x: x.tolist()
             for feature in features:
                 if feature.Point_Vector is None:
-                    continue 
+                    continue
                 feature.Point_Vector = convert_tolist(feature.Point_Vector)
-                feature.Stain_Marker_Embeddings = convert_tolist(feature.Stain_Marker_Embeddings)
+                feature.Stain_Marker_Embeddings = convert_tolist(
+                    feature.Stain_Marker_Embeddings
+                )
             return features
         except Exception as e:
             print(f"Retriving images failed due to {e}")
+
 
 @app.get("/get-feature/")
 async def get_cell_feature_by_id(UniqueID: str):
     with Session(engine) as session:
         try:
-            feature = session.query(CellFeatures).filter(CellFeatures.localFeatureId == UniqueID).first() # UniqueID
-            
-            convert_tolist = lambda x : x.tolist()
+            feature = (
+                session.query(CellFeatures)
+                .filter(CellFeatures.localFeatureId == UniqueID)
+                .first()
+            )  # UniqueID
+
+            convert_tolist = lambda x: x.tolist()
 
             feature.Point_Vector = convert_tolist(feature.Point_Vector)
             if feature.Stain_Marker_Embeddings:
-                feature.Stain_Marker_Embeddings = convert_tolist(feature.Stain_Marker_Embeddings)
-            return feature            
+                feature.Stain_Marker_Embeddings = convert_tolist(
+                    feature.Stain_Marker_Embeddings
+                )
+            return feature
         except Exception as e:
             print(f"Retriving images failed due to {e}")
+
 
 # get all features for a given image
 @app.get("/get-features-by-image/{imageID}")
 async def get_cell_features_by_image(imageID: str, lmt: Optional[int] = 50000):
     with Session(engine) as session:
         try:
-            check_if_exists = session.query(CellFeatures).filter(CellFeatures.imageID == imageID).first()
-            
+            check_if_exists = (
+                session.query(CellFeatures)
+                .filter(CellFeatures.imageID == imageID)
+                .first()
+            )
+
             if check_if_exists == None:
-                await fetchFromCloud(imageID, '647676a3f439a1682af4cd73')
-                
-            features = session.query(CellFeatures).filter(CellFeatures.imageID == imageID).order_by(CellFeatures.localFeatureId.asc()).limit(lmt).all()
-            
-            convert_tolist = lambda x : x.tolist()
+                await fetchFromCloud(imageID, "647676a3f439a1682af4cd73")
+
+            features = (
+                session.query(CellFeatures)
+                .filter(CellFeatures.imageID == imageID)
+                .order_by(CellFeatures.localFeatureId.asc())
+                .limit(lmt)
+                .all()
+            )
+
+            convert_tolist = lambda x: x.tolist()
             result = []
             for feature in features:
                 if feature.Point_Vector is None:
-                    continue 
+                    continue
                 feature.Point_Vector = convert_tolist(feature.Point_Vector)
-                feature.Stain_Marker_Embeddings = convert_tolist(feature.Stain_Marker_Embeddings)
+                feature.Stain_Marker_Embeddings = convert_tolist(
+                    feature.Stain_Marker_Embeddings
+                )
                 result.append(feature)
             return {"count": len(result), "features": result}
         except Exception as e:
             print(f"Retriving images failed due to {e}")
 
+
 @app.get("/get-csv/{imageID}")
-async def fetchFromCloud(imageID: str, csvID: Optional[str] = '647676a3f439a1682af4cd73'):
+async def fetchFromCloud(
+    imageID: str, csvID: Optional[str] = "647676a3f439a1682af4cd73"
+):
     # itemID = '647676a3f439a1682af4cd73'
-    gc = girder_client.GirderClient(apiUrl="https://candygram.neurology.emory.edu/api/v1")
-    gc.authenticate(apiKey='iG7P5bfJ7x7XnXI8v7I3LzXXkQ5YPjZgcF9NQVwY')
-    
+    gc = girder_client.GirderClient(
+        apiUrl="https://candygram.neurology.emory.edu/api/v1"
+    )
+    gc.authenticate(apiKey="iG7P5bfJ7x7XnXI8v7I3LzXXkQ5YPjZgcF9NQVwY")
+
     itemInfo = gc.getItem(csvID)
     filesInItem = gc.listFile(csvID)
-    
+
     for fi in filesInItem:
-        if (fi['name'] == itemInfo['name']):
+        if fi["name"] == itemInfo["name"]:
             csvFileInfo = fi
             break
- 
- 
+
     fio = io.BytesIO()  ### File like object to store the CSV File
     m = gc.get(
-        "file/%s/download?contentDisposition=inline" % csvFileInfo["_id"], jsonResp=False
+        "file/%s/download?contentDisposition=inline" % csvFileInfo["_id"],
+        jsonResp=False,
     )
     fio.seek(0)
     csvraw = m.content.decode("utf-8-sig")  ## Need to make this more robust
-    
+
     csv_upload_file = UploadFile(
         filename="test.csv",
         file=io.StringIO(csvraw),  # Create a StringIO object from the decoded string
     )
     upload_status = await upload_feature_csv(imageID, csv_upload_file)
     print(f"Upload status: {upload_status}")
-    
+
     return upload_status
 
+
 @app.get("/get-similar-feat")
-async def get_similar_features(x: float, y: float, dst: float, imageID: str, order_list: Optional[str], lmt: Optional[int] = 10):
+async def get_similar_features(
+    x: float,
+    y: float,
+    dst: float,
+    imageID: str,
+    order_list: Optional[str],
+    lmt: Optional[int] = 10,
+):
     with Session(engine) as session:
         try:
-            pt = [x,y]
+            pt = [x, y]
             order_list = order_list.split(",")
-            query = select(CellFeatures).filter(CellFeatures.imageID == imageID).filter(CellFeatures.Point_Vector.l2_distance(pt) < dst)
+            query = (
+                select(CellFeatures)
+                .filter(CellFeatures.imageID == imageID)
+                .filter(CellFeatures.Point_Vector.l2_distance(pt) < dst)
+            )
             for order_clause in order_list:
                 if order_clause == "Cell_Area":
                     query.order_by(CellFeatures.Cell_Area)
@@ -216,27 +280,32 @@ async def get_similar_features(x: float, y: float, dst: float, imageID: str, ord
                 elif order_clause == "Percent_Epithelium":
                     query.order_by(CellFeatures.Percent_Epithelium)
 
-            points = session.scalars(query.limit(lmt)) # returns within dist                       
-                        
-            convert_tolist = lambda x : x.tolist(); 
+            points = session.scalars(query.limit(lmt))  # returns within dist
+
+            convert_tolist = lambda x: x.tolist()
             result = []
             for ptx in points:
-                if ptx.Point_Vector is None: 
+                if ptx.Point_Vector is None:
                     continue
-                ptx.Point_Vector = convert_tolist(ptx.Point_Vector) # type is numpy.ndarray
-                ptx.Stain_Marker_Embeddings = convert_tolist(ptx.Stain_Marker_Embeddings) # type is numpy.ndarray
+                ptx.Point_Vector = convert_tolist(
+                    ptx.Point_Vector
+                )  # type is numpy.ndarray
+                ptx.Stain_Marker_Embeddings = convert_tolist(
+                    ptx.Stain_Marker_Embeddings
+                )  # type is numpy.ndarray
                 result.append(ptx)
             return result
         except Exception as e:
             print(f"Retriving points failed due to {e}")
 
+
 @app.post("/upload-cell-features/")
 async def upload_feature_csv(imageID: str, file: UploadFile = File(...)):
     try:
-                
+
         df = pd.read_csv(file.file)
         df.dropna(inplace=True)
-        
+
         print(f"Shape of the dataframe: {df.shape}")
 
         feature_id = df.iloc[:, 2].values
