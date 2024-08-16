@@ -13,6 +13,7 @@ services:
       - ALLOW_IP_RANGE=0.0.0.0/0
       - POSTGRES_HOST_AUTH_METHOD=trust
       - POSTGRES_MULTIPLE_EXTENSIONS=postgis,hstore,postgis_topology,postgis_raster,pgrouting,pgvector
+    platform: linux/amd64
     expose:
       - "5435"
     ports:
@@ -36,6 +37,7 @@ services:
     container_name: osd-analysis-api
     build: api/
     command: bash -c 'while !</dev/tcp/gisdb/5435; do sleep 1; done; uvicorn app.main:app --host 0.0.0.0 --port 85 --reload'
+    platform: linux/amd64
     ports:
       - "85:85"
     expose:
@@ -55,6 +57,7 @@ services:
   #     - "6379:6379"
   dash:
     container_name: osd-analysis-dash
+    platform: linux/amd64
     build: dashApp/
     volumes:
       - ./dashApp:/app

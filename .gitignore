@@ -138,3 +138,11 @@ dist
 api/app/__pycache__/main.cpython-39.pyc
 api/app/__pycache__/main.cpython-39.pyc
 api/app/__pycache__/models.cpython-39.pyc
+
+
+api/app/*/**.pyc
+api/app/__pycache__/__init__.cpython-39.pyc
+api/app/__pycache__/main.cpython-39.pyc
+api/app/__pycache__/models.cpython-39.pyc
+api/app/__pycache__/services.cpython-39.pyc
+api/app/__pycache__/utils.cpython-39.pyc
